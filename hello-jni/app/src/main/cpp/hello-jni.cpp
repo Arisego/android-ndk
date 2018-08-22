@@ -22,6 +22,7 @@
 #include <sys/ioctl.h>
 #include <net/if.h>
 #include <netinet/in.h>
+#include <unistd.h>
 
 #include <stdio.h>
 #include <errno.h>
@@ -151,6 +152,7 @@ Java_com_example_hellojni_HelloJni_stringFromJNI(JNIEnv *env,
         sprintf(buffer, "Socket create failed");
     }
 
+    close(TempSocket);
     ts_ret = env->NewStringUTF(buffer);
     return ts_ret;
 }
