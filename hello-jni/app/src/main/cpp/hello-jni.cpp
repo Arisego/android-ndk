@@ -38,6 +38,160 @@
 
 extern int errno;
 
+#include <stdio.h>
+#include <string.h>
+#include <net/if.h>
+#include <sys/ioctl.h>
+#include <arpa/inet.h>
+#include <dirent.h>
+
+#define IPV6_ADDR_GLOBAL        0x0000U
+#define IPV6_ADDR_LOOPBACK      0x0010U
+#define IPV6_ADDR_LINKLOCAL     0x0020U
+#define IPV6_ADDR_SITELOCAL     0x0040U
+#define IPV6_ADDR_COMPATv4      0x0080U
+
+#include <String>
+std::string ls_All;
+
+void parse_inet6(const char *ifname) {
+    FILE *f;
+    int ret, scope, prefix;
+    unsigned char ipv6[16];
+    char dname[IFNAMSIZ];
+    char address[INET6_ADDRSTRLEN];
+    char *scopestr;
+
+    f = fopen("/proc/net/if_inet6", "r");
+    if (f == NULL) {
+        return;
+    }
+
+    while (19 == fscanf(f,
+                        " %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx %*x %x %x %*x %s",
+                        &ipv6[0],
+                        &ipv6[1],
+                        &ipv6[2],
+                        &ipv6[3],
+                        &ipv6[4],
+                        &ipv6[5],
+                        &ipv6[6],
+                        &ipv6[7],
+                        &ipv6[8],
+                        &ipv6[9],
+                        &ipv6[10],
+                        &ipv6[11],
+                        &ipv6[12],
+                        &ipv6[13],
+                        &ipv6[14],
+                        &ipv6[15],
+                        &prefix,
+                        &scope,
+                        dname)) {
+
+        if (inet_ntop(AF_INET6, ipv6, address, sizeof(address)) == NULL) {
+            continue;
+        }
+
+        switch (scope) {
+            case IPV6_ADDR_GLOBAL:
+                scopestr = "Global";
+                break;
+            case IPV6_ADDR_LINKLOCAL:
+                scopestr = "Link";
+                break;
+            case IPV6_ADDR_SITELOCAL:
+                scopestr = "Site";
+                break;
+            case IPV6_ADDR_COMPATv4:
+                scopestr = "Compat";
+                break;
+            case IPV6_ADDR_LOOPBACK:
+                scopestr = "Host";
+                break;
+            default:
+                scopestr = "Unknown";
+        }
+
+        LOGW("IPv6 address: %s, prefix: %d, scope: %s\n", address, prefix, scopestr);
+
+        char buffer[150];
+        sprintf(buffer,"IPv6 address: %s, prefix: %d, scope: %s dname: %s\n", address, prefix, scopestr, dname);
+        ls_All += buffer;
+    }
+
+    fclose(f);
+}
+
+void parse_ioctl(const char *ifname)
+{
+    int sock;
+    struct ifreq ifr;
+    struct sockaddr_in *ipaddr;
+    char address[INET_ADDRSTRLEN];
+    size_t ifnamelen;
+
+    /* copy ifname to ifr object */
+    ifnamelen = strlen(ifname);
+    if (ifnamelen >= sizeof(ifr.ifr_name)) {
+        return ;
+    }
+    memcpy(ifr.ifr_name, ifname, ifnamelen);
+    ifr.ifr_name[ifnamelen] = '\0';
+
+    /* open socket */
+    sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
+    if (sock < 0) {
+        return;
+    }
+
+    /* process mac */
+    if (ioctl(sock, SIOCGIFHWADDR, &ifr) != -1) {
+        LOGW("Mac address: %02x:%02x:%02x:%02x:%02x:%02x\n",
+               (unsigned char)ifr.ifr_hwaddr.sa_data[0],
+               (unsigned char)ifr.ifr_hwaddr.sa_data[1],
+               (unsigned char)ifr.ifr_hwaddr.sa_data[2],
+               (unsigned char)ifr.ifr_hwaddr.sa_data[3],
+               (unsigned char)ifr.ifr_hwaddr.sa_data[4],
+               (unsigned char)ifr.ifr_hwaddr.sa_data[5]);
+    }
+
+    /* process mtu */
+    if (ioctl(sock, SIOCGIFMTU, &ifr) != -1) {
+        LOGW("MTU: %d\n", ifr.ifr_mtu);
+    }
+
+    /* die if cannot get address */
+    if (ioctl(sock, SIOCGIFADDR, &ifr) == -1) {
+        close(sock);
+        return;
+    }
+
+    /* process ip */
+    ipaddr = (struct sockaddr_in *)&ifr.ifr_addr;
+    if (inet_ntop(AF_INET, &ipaddr->sin_addr, address, sizeof(address)) != NULL) {
+        LOGW("Ip address: %s\n", address);
+    }
+
+    /* try to get broadcast */
+    if (ioctl(sock, SIOCGIFBRDADDR, &ifr) != -1) {
+        ipaddr = (struct sockaddr_in *)&ifr.ifr_broadaddr;
+        if (inet_ntop(AF_INET, &ipaddr->sin_addr, address, sizeof(address)) != NULL) {
+            LOGW("Broadcast: %s\n", address);
+        }
+    }
+
+    /* try to get mask */
+    if (ioctl(sock, SIOCGIFNETMASK, &ifr) != -1) {
+        ipaddr = (struct sockaddr_in *)&ifr.ifr_netmask;
+        if (inet_ntop(AF_INET, &ipaddr->sin_addr, address, sizeof(address)) != NULL) {
+            LOGW("Netmask: %s\n", address);
+        }
+    }
+
+    close(sock);
+}
+
 /* This is a trivial JNI example where we use a native method
  * to return a new VM String. See the corresponding Java source
  * file located at:
@@ -48,112 +202,37 @@ extern "C" {
 JNIEXPORT jstring JNICALL
 Java_com_example_hellojni_HelloJni_stringFromJNI(JNIEnv *env,
                                                  jobject thiz) {
-#if defined(__arm__)
-#if defined(__ARM_ARCH_7A__)
-#if defined(__ARM_NEON__)
-#if defined(__ARM_PCS_VFP)
-#define ABI "armeabi-v7a/NEON (hard-float)"
-#else
-#define ABI "armeabi-v7a/NEON"
-#endif
-#else
-#if defined(__ARM_PCS_VFP)
-#define ABI "armeabi-v7a (hard-float)"
-#else
-#define ABI "armeabi-v7a"
-#endif
-#endif
-#else
-#define ABI "armeabi"
-#endif
-#elif defined(__i386__)
-#define ABI "x86"
-#elif defined(__x86_64__)
-#define ABI "x86_64"
-#elif defined(__mips64)  /* mips64el-* toolchain defines __mips__ too */
-#define ABI "mips64"
-#elif defined(__mips__)
-#define ABI "mips"
-#elif defined(__aarch64__)
-#define ABI "arm64-v8a"
-#else
-#define ABI "unknown"
-#endif
 
     jstring ts_ret;
     char buffer[50];
     sprintf(buffer, "Everything is right %d", 12);
 
-    int TempSocket = socket(PF_INET, SOCK_STREAM, 0);
-    if (TempSocket) {
-        struct ifreq IfReqs[8];
-        struct ifconf IfConfig;
+    DIR *d;
+    struct dirent *de;
 
-        memset(&IfConfig, 0, sizeof(IfConfig));
-        IfConfig.ifc_ifcu.ifcu_req = IfReqs;
-        IfConfig.ifc_len = sizeof(IfReqs);
+    d = opendir("/sys/class/net/");
+    if (d == NULL) {
+        sprintf(buffer, "/sys/class/net/ open failed");
 
-        int Result = ioctl(TempSocket, SIOCGIFCONF, &IfConfig);
-        if (Result == 0) {
-            int32_t WifiAddress = 0;
-            int32_t CellularAddress = 0;
-            int32_t OtherAddress = 0;
-
-            for (int32_t IdxReq = 0; IdxReq < 8; ++IdxReq) {
-                // Examine interfaces that are up and not loop back
-                int ResultFlags = ioctl(TempSocket, SIOCGIFFLAGS, &IfReqs[IdxReq]);
-                if (ResultFlags == 0 &&
-                    (IfReqs[IdxReq].ifr_flags & IFF_UP) &&
-                    (IfReqs[IdxReq].ifr_flags & IFF_LOOPBACK) == 0) {
-                    auto* tp_IfrAddr = &IfReqs[IdxReq].ifr_addr;
-                    struct sockaddr_in* tp_SocAddr = reinterpret_cast<sockaddr_in *>(tp_IfrAddr);
-
-                    if (strcmp(IfReqs[IdxReq].ifr_name, "wlan0") == 0) {
-                        // 'Usually' wifi, Prefer wifi
-                        WifiAddress = tp_SocAddr->sin_addr.s_addr;
-                        break;
-                    } else if (strcmp(IfReqs[IdxReq].ifr_name, "rmnet0") == 0) {
-                        // 'Usually' cellular
-                        CellularAddress = tp_SocAddr->sin_addr.s_addr;
-                    } else if (OtherAddress == 0) {
-                        // First alternate found
-                        OtherAddress = tp_SocAddr->sin_addr.s_addr;
-                    }
-                }
+        parse_inet6("fake");
+        ls_All += "\n [route from fake call]";
+        ts_ret = env->NewStringUTF(ls_All.c_str());
+    } else{
+        while (NULL != (de = readdir(d))) {
+            if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
+                continue;
             }
 
-            // Prioritize results found
-            if (WifiAddress != 0)
-            {
-                // Prefer Wifi
-                sprintf(buffer, "Wifi IP: %d", WifiAddress);
-            }
-            else if (CellularAddress != 0)
-            {
-                // Then cellular
-                sprintf(buffer, "Cellular IP %d", CellularAddress);
-            }
-            else if (OtherAddress != 0)
-            {
-                // Then whatever else was found
-                sprintf(buffer, "OtherAddress IP %d", OtherAddress);
-            }
-            else
-            {
-                // Give up
-                sprintf(buffer,"Get no valid ip");
-            }
+            LOGW("Interface %s\n", de->d_name);
+            parse_ioctl(de->d_name);
+            parse_inet6(de->d_name);
 
-        } else {
-            int ErrNo = errno;
-            sprintf(buffer, "Ioctl error %d||%d||%s", Result, errno, strerror(ErrNo));
+            LOGW("\n");
         }
-    } else {
-        sprintf(buffer, "Socket create failed");
-    }
+        closedir(d);
 
-    close(TempSocket);
-    ts_ret = env->NewStringUTF(buffer);
+        ts_ret = env->NewStringUTF(ls_All.c_str());
+    }
     return ts_ret;
 }
 }
