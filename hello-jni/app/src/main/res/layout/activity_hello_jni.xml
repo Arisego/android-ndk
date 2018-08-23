@@ -17,4 +17,16 @@
         app:layout_constraintRight_toRightOf="@+id/activity_hello_jni"
         app:layout_constraintTop_toTopOf="@+id/activity_hello_jni" />
 
+    <Button
+        android:id="@+id/btn_refresh"
+        style="@android:style/Widget.Button"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="5dp"
+        android:onClick="Refresh_Shown"
+        android:text="@string/app_name"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
+
 </android.support.constraint.ConstraintLayout>

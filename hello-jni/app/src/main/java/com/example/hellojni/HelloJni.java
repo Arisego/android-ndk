@@ -17,6 +17,7 @@ package com.example.hellojni;
 
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
+import android.view.View;
 import android.widget.TextView;
 
 public class HelloJni extends AppCompatActivity {
@@ -49,6 +50,11 @@ public class HelloJni extends AppCompatActivity {
      * java.lang.UnsatisfiedLinkError exception !
      */
     public native String  unimplementedStringFromJNI();
+
+    public void Refresh_Shown(View InView){
+        TextView tv = (TextView)findViewById(R.id.hello_textview);
+        tv.setText( stringFromJNI() );
+    }
 
     /* this is used to load the 'hello-jni' library on application
      * startup. The library has already been unpacked into

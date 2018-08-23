@@ -1,3 +1,4 @@
 <resources>
-    <string name="app_name">HelloJni</string>
+    <string name="app_name">TestIpv6</string>
+    <string name="refresh">Refresh</string>
 </resources>

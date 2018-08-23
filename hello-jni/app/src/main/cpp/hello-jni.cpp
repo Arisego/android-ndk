@@ -232,7 +232,7 @@ Java_com_example_hellojni_HelloJni_stringFromJNI(JNIEnv *env,
     ls_All = buffer;
 
     log_out("\n -- Resolve host  --");
-    Resolve_Host("www.baidu.com");
+    Resolve_Host("ipv6.baidu.com");
     Resolve_Host("localhost");
 
     log_out("\n");
