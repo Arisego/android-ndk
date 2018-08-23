@@ -59,8 +59,8 @@ char lc_buffer[50];
 #include <netinet/in.h>
 #include <net/if.h>
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
 #include <netdb.h>
-
 
 void ipv6_to_str_unexpanded(char * str, const struct in6_addr * addr) {
     sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
@@ -136,6 +136,82 @@ void Resolve_Host(const char* name)
     Resolve_RemoteAddr(AF_INET6, name);
 }
 
+////////////////////////////////////////////////////////////////////////////////////////////////////
+#define IPV6_ADDR_GLOBAL 0x0000U
+#define IPV6_ADDR_LOOPBACK 0x0010U
+#define IPV6_ADDR_LINKLOCAL 0x0020U
+#define IPV6_ADDR_SITELOCAL 0x0040U
+#define IPV6_ADDR_COMPATv4 0x0080U
+
+void parse_inet6()
+{
+    log_out("\n -- Try parse local inet6 by prof net file --");
+
+    FILE*f;
+    int ret,scope,prefix;
+    unsigned char ipv6[16];
+    char dname[IFNAMSIZ];
+    char address[INET6_ADDRSTRLEN];
+    char* scopestr;
+
+    f=fopen("/proc/net/if_inet6","r");
+    if(f==NULL){
+        return;
+    }
+
+    while(19==fscanf(f,
+        "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%*x%x%x%*x%s",
+        &ipv6[0],
+        &ipv6[1],
+        &ipv6[2],
+        &ipv6[3],
+        &ipv6[4],
+        &ipv6[5],
+        &ipv6[6],
+        &ipv6[7],
+        &ipv6[8],
+        &ipv6[9],
+        &ipv6[10],
+        &ipv6[11],
+        &ipv6[12],
+        &ipv6[13],
+        &ipv6[14],
+        &ipv6[15],
+        &prefix,
+        &scope,
+        dname))
+    {
+
+        if(inet_ntop(AF_INET6,ipv6,address,sizeof(address))==NULL){
+            continue;
+        }
+
+        switch(scope){
+        case IPV6_ADDR_GLOBAL:
+                scopestr="Global";
+        break;
+        case IPV6_ADDR_LINKLOCAL:
+                scopestr="Link";
+        break;
+        case IPV6_ADDR_SITELOCAL:
+                scopestr="Site";
+        break;
+        case IPV6_ADDR_COMPATv4:
+                scopestr="Compat";
+        break;
+        case IPV6_ADDR_LOOPBACK:
+                scopestr="Host";
+        break;
+        default:
+            scopestr="Unknown";
+        }
+
+        log_out("\n IPv6address:%s \n > prefix:%d scope:%s dname:%s",address,prefix,scopestr,dname);
+    }
+
+    fclose(f);
+}
+
 /* This is a trivial JNI example where we use a native method
  * to return a new VM String. See the corresponding Java source
  * file located at:
@@ -153,8 +229,12 @@ Java_com_example_hellojni_HelloJni_stringFromJNI(JNIEnv *env,
 
     ls_All = buffer;
 
+    log_out("\n -- Resolve host  --");
     Resolve_Host("www.baidu.com");
     Resolve_Host("localhost");
+
+    log_out("\n");
+    parse_inet6();
 
     ts_ret = env->NewStringUTF(ls_All.c_str());
     return ts_ret;
