@@ -38,158 +38,102 @@
 
 extern int errno;
 
-#include <stdio.h>
-#include <string.h>
-#include <net/if.h>
-#include <sys/ioctl.h>
-#include <arpa/inet.h>
-#include <dirent.h>
-
-#define IPV6_ADDR_GLOBAL        0x0000U
-#define IPV6_ADDR_LOOPBACK      0x0010U
-#define IPV6_ADDR_LINKLOCAL     0x0020U
-#define IPV6_ADDR_SITELOCAL     0x0040U
-#define IPV6_ADDR_COMPATv4      0x0080U
-
-#include <String>
+#include <string>
 std::string ls_All;
+char lc_buffer[50];
 
-void parse_inet6(const char *ifname) {
-    FILE *f;
-    int ret, scope, prefix;
-    unsigned char ipv6[16];
-    char dname[IFNAMSIZ];
-    char address[INET6_ADDRSTRLEN];
-    char *scopestr;
+#define log_out(...) LOGW(__VA_ARGS__);    sprintf(lc_buffer,__VA_ARGS__);ls_All += lc_buffer;
 
-    f = fopen("/proc/net/if_inet6", "r");
-    if (f == NULL) {
-        return;
-    }
+#include <vector>
+#include <ifaddrs.h>
 
-    while (19 == fscanf(f,
-                        " %2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx %*x %x %x %*x %s",
-                        &ipv6[0],
-                        &ipv6[1],
-                        &ipv6[2],
-                        &ipv6[3],
-                        &ipv6[4],
-                        &ipv6[5],
-                        &ipv6[6],
-                        &ipv6[7],
-                        &ipv6[8],
-                        &ipv6[9],
-                        &ipv6[10],
-                        &ipv6[11],
-                        &ipv6[12],
-                        &ipv6[13],
-                        &ipv6[14],
-                        &ipv6[15],
-                        &prefix,
-                        &scope,
-                        dname)) {
+#include <sys/types.h>
+#include <sys/socket.h>
+#include <ifaddrs.h>
+#include <stdlib.h>
+#include <arpa/inet.h>
+#include <string.h>
+#include <vector>
+#include <string>
+#include <iostream>
+#include <netinet/in.h>
+#include <net/if.h>
 
-        if (inet_ntop(AF_INET6, ipv6, address, sizeof(address)) == NULL) {
-            continue;
-        }
+#include <netdb.h>
 
-        switch (scope) {
-            case IPV6_ADDR_GLOBAL:
-                scopestr = "Global";
-                break;
-            case IPV6_ADDR_LINKLOCAL:
-                scopestr = "Link";
-                break;
-            case IPV6_ADDR_SITELOCAL:
-                scopestr = "Site";
-                break;
-            case IPV6_ADDR_COMPATv4:
-                scopestr = "Compat";
-                break;
-            case IPV6_ADDR_LOOPBACK:
-                scopestr = "Host";
-                break;
-            default:
-                scopestr = "Unknown";
-        }
 
-        LOGW("IPv6 address: %s, prefix: %d, scope: %s\n", address, prefix, scopestr);
-
-        char buffer[150];
-        sprintf(buffer,"IPv6 address: %s, prefix: %d, scope: %s dname: %s\n", address, prefix, scopestr, dname);
-        ls_All += buffer;
-    }
-
-    fclose(f);
+void ipv6_to_str_unexpanded(char * str, const struct in6_addr * addr) {
+    sprintf(str, "%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x:%02x%02x",
+            (int)addr->s6_addr[0], (int)addr->s6_addr[1],
+            (int)addr->s6_addr[2], (int)addr->s6_addr[3],
+            (int)addr->s6_addr[4], (int)addr->s6_addr[5],
+            (int)addr->s6_addr[6], (int)addr->s6_addr[7],
+            (int)addr->s6_addr[8], (int)addr->s6_addr[9],
+            (int)addr->s6_addr[10], (int)addr->s6_addr[11],
+            (int)addr->s6_addr[12], (int)addr->s6_addr[13],
+            (int)addr->s6_addr[14], (int)addr->s6_addr[15]);
 }
 
-void parse_ioctl(const char *ifname)
+void Resolve_RemoteAddr(int ai_Family, const char* name)
 {
-    int sock;
-    struct ifreq ifr;
-    struct sockaddr_in *ipaddr;
-    char address[INET_ADDRSTRLEN];
-    size_t ifnamelen;
+    struct addrinfo* addr_result;
 
-    /* copy ifname to ifr object */
-    ifnamelen = strlen(ifname);
-    if (ifnamelen >= sizeof(ifr.ifr_name)) {
-        return ;
-    }
-    memcpy(ifr.ifr_name, ifname, ifnamelen);
-    ifr.ifr_name[ifnamelen] = '\0';
+    struct addrinfo hints;
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = ai_Family;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
 
-    /* open socket */
-    sock = socket(PF_INET, SOCK_DGRAM, IPPROTO_IP);
-    if (sock < 0) {
-        return;
-    }
+    int result = getaddrinfo(name, nullptr, &hints, &addr_result);
+    if(result == 0)
+    {
+        addrinfo* AddrInfoIndex = addr_result;
 
-    /* process mac */
-    if (ioctl(sock, SIOCGIFHWADDR, &ifr) != -1) {
-        LOGW("Mac address: %02x:%02x:%02x:%02x:%02x:%02x\n",
-               (unsigned char)ifr.ifr_hwaddr.sa_data[0],
-               (unsigned char)ifr.ifr_hwaddr.sa_data[1],
-               (unsigned char)ifr.ifr_hwaddr.sa_data[2],
-               (unsigned char)ifr.ifr_hwaddr.sa_data[3],
-               (unsigned char)ifr.ifr_hwaddr.sa_data[4],
-               (unsigned char)ifr.ifr_hwaddr.sa_data[5]);
-    }
+        for (; AddrInfoIndex != nullptr; AddrInfoIndex = AddrInfoIndex->ai_next)
+        {
+            if (AddrInfoIndex->ai_family == AF_INET)
+            {
+                sockaddr_in* IPv4SockAddr = reinterpret_cast<sockaddr_in*>(AddrInfoIndex->ai_addr);
+                if (IPv4SockAddr != nullptr)
+                {
+                    log_out("\n - Ipv4: %s", inet_ntoa(IPv4SockAddr->sin_addr));
+                }
+            }
 
-    /* process mtu */
-    if (ioctl(sock, SIOCGIFMTU, &ifr) != -1) {
-        LOGW("MTU: %d\n", ifr.ifr_mtu);
-    }
+            if (AddrInfoIndex->ai_family == AF_INET6)
+            {
+                sockaddr_in6* IPv6SockAddr = reinterpret_cast<sockaddr_in6*>(AddrInfoIndex->ai_addr);
+                if (IPv6SockAddr != nullptr)
+                {
+                    char addr6_Buf[120];
+                    ipv6_to_str_unexpanded(addr6_Buf, &IPv6SockAddr->sin6_addr);
+                    log_out("\n - Ipv6: %s", addr6_Buf);
+                }
+            }
 
-    /* die if cannot get address */
-    if (ioctl(sock, SIOCGIFADDR, &ifr) == -1) {
-        close(sock);
-        return;
-    }
-
-    /* process ip */
-    ipaddr = (struct sockaddr_in *)&ifr.ifr_addr;
-    if (inet_ntop(AF_INET, &ipaddr->sin_addr, address, sizeof(address)) != NULL) {
-        LOGW("Ip address: %s\n", address);
-    }
-
-    /* try to get broadcast */
-    if (ioctl(sock, SIOCGIFBRDADDR, &ifr) != -1) {
-        ipaddr = (struct sockaddr_in *)&ifr.ifr_broadaddr;
-        if (inet_ntop(AF_INET, &ipaddr->sin_addr, address, sizeof(address)) != NULL) {
-            LOGW("Broadcast: %s\n", address);
         }
-    }
+    } else{
+        int ErrNo = errno;
+        std::string ts_ErrInf = strerror(ErrNo);
 
-    /* try to get mask */
-    if (ioctl(sock, SIOCGIFNETMASK, &ifr) != -1) {
-        ipaddr = (struct sockaddr_in *)&ifr.ifr_netmask;
-        if (inet_ntop(AF_INET, &ipaddr->sin_addr, address, sizeof(address)) != NULL) {
-            LOGW("Netmask: %s\n", address);
+        std::string ts_ResInf = "";
+        switch(result)
+        {
+            case EAI_NODATA:
+                ts_ResInf = "no address associated with hostname";
+                break;
         }
-    }
 
-    close(sock);
+        log_out("\n getaddrinfo failed\n - Return: %d||%s\n - Error: %d||%s", result, ts_ResInf.c_str(), errno, ts_ErrInf.c_str());
+    }
+}
+
+void Resolve_Host(const char* name)
+{
+    log_out("\n Resolve_Host: %s", name);
+
+    Resolve_RemoteAddr(AF_INET, name);
+    Resolve_RemoteAddr(AF_INET6, name);
 }
 
 /* This is a trivial JNI example where we use a native method
@@ -205,34 +149,14 @@ Java_com_example_hellojni_HelloJni_stringFromJNI(JNIEnv *env,
 
     jstring ts_ret;
     char buffer[50];
-    sprintf(buffer, "Everything is right %d", 12);
+    sprintf(buffer, "Build with android api lv %d", __ANDROID_API__);
 
-    DIR *d;
-    struct dirent *de;
+    ls_All = buffer;
 
-    d = opendir("/sys/class/net/");
-    if (d == NULL) {
-        sprintf(buffer, "/sys/class/net/ open failed");
+    Resolve_Host("www.baidu.com");
+    Resolve_Host("localhost");
 
-        parse_inet6("fake");
-        ls_All += "\n [route from fake call]";
-        ts_ret = env->NewStringUTF(ls_All.c_str());
-    } else{
-        while (NULL != (de = readdir(d))) {
-            if (strcmp(de->d_name, ".") == 0 || strcmp(de->d_name, "..") == 0) {
-                continue;
-            }
-
-            LOGW("Interface %s\n", de->d_name);
-            parse_ioctl(de->d_name);
-            parse_inet6(de->d_name);
-
-            LOGW("\n");
-        }
-        closedir(d);
-
-        ts_ret = env->NewStringUTF(ls_All.c_str());
-    }
+    ts_ret = env->NewStringUTF(ls_All.c_str());
     return ts_ret;
 }
 }
