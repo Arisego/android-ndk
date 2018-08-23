@@ -112,6 +112,8 @@ void Resolve_RemoteAddr(int ai_Family, const char* name)
             }
 
         }
+
+        freeaddrinfo(addr_result);
     } else{
         int ErrNo = errno;
         std::string ts_ErrInf = strerror(ErrNo);
