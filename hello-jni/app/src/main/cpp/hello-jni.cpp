@@ -221,14 +221,24 @@ void parse_inet6()
 void Test_TimeStamp()
 {
     timespec ts_CurTime;
-    clock_gettime(CLOCK_BOOTTIME, &ts_CurTime);
+    int ti_Ret = clock_gettime(CLOCK_BOOTTIME, &ts_CurTime);
+
+    double tf_TimeStamp = 0.0;
+    if(0 == ti_Ret)
+    {
+        tf_TimeStamp = ts_CurTime.tv_sec + ts_CurTime.tv_nsec * 1e-9;
+    } else
+    {
+        int ti_ErrNo = errno;
+        log_out("\n Falied to call clock_gettime(): ret %d err %d", ti_Ret, ti_ErrNo);
+    }
 
     timeval ts_SystemTime;
     gettimeofday(&ts_SystemTime, nullptr);
 
     long td_Delta = ts_CurTime.tv_sec - ts_SystemTime.tv_sec;
 
-    log_out("\n CurTime is: %ld || %ld = %ld", ts_CurTime.tv_sec, ts_SystemTime.tv_sec, td_Delta);
+    log_out("\n CurTime is: %lf \n %ld = %ld", tf_TimeStamp, ts_SystemTime.tv_sec, td_Delta);
 }
 
 /* This is a trivial JNI example where we use a native method
