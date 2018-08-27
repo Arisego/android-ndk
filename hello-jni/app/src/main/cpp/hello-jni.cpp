@@ -14,6 +14,9 @@
  * limitations under the License.
  *
  */
+
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
 #include <string.h>
 #include <jni.h>
 
@@ -154,7 +157,7 @@ void parse_inet6()
     unsigned char ipv6[16];
     char dname[IFNAMSIZ];
     char address[INET6_ADDRSTRLEN];
-    char* scopestr;
+    std::string scopestr;
 
     f=fopen("/proc/net/if_inet6","r");
     if(f==NULL){
@@ -208,10 +211,24 @@ void parse_inet6()
             scopestr="Unknown";
         }
 
-        log_out("\n IPv6address:%s \n > prefix:%d scope:%s dname:%s",address,prefix,scopestr,dname);
+        log_out("\n IPv6address:%s \n > prefix:%d scope:%s dname:%s",address,prefix,scopestr.c_str(),dname);
     }
 
     fclose(f);
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+void Test_TimeStamp()
+{
+    timespec ts_CurTime;
+    clock_gettime(CLOCK_BOOTTIME, &ts_CurTime);
+
+    timeval ts_SystemTime;
+    gettimeofday(&ts_SystemTime, nullptr);
+
+    long td_Delta = ts_CurTime.tv_sec - ts_SystemTime.tv_sec;
+
+    log_out("\n CurTime is: %ld || %ld = %ld", ts_CurTime.tv_sec, ts_SystemTime.tv_sec, td_Delta);
 }
 
 /* This is a trivial JNI example where we use a native method
@@ -228,11 +245,13 @@ Java_com_example_hellojni_HelloJni_stringFromJNI(JNIEnv *env,
     jstring ts_ret;
     char buffer[50];
     sprintf(buffer, "Build with android api lv %d", __ANDROID_API__);
-
     ls_All = buffer;
+
+    Test_TimeStamp();
 
     log_out("\n -- Resolve host  --");
     Resolve_Host("ipv6.baidu.com");
+    //Resolve_Host("www.tencent.com");
     Resolve_Host("localhost");
 
     log_out("\n");
