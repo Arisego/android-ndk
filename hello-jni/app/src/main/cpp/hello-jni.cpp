@@ -86,6 +86,7 @@ void Resolve_RemoteAddr(int ai_Family, const char* name)
     hints.ai_family = ai_Family;
     hints.ai_socktype = SOCK_STREAM;
     hints.ai_protocol = IPPROTO_TCP;
+    hints.ai_flags |= AI_ADDRCONFIG;
 
     int result = getaddrinfo(name, nullptr, &hints, &addr_result);
     if(result == 0)
