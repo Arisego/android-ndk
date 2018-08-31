@@ -149,12 +149,24 @@ void Resolve_Host(const char* name)
 #define IPV6_ADDR_SITELOCAL 0x0040U
 #define IPV6_ADDR_COMPATv4 0x0080U
 
+/* ifa_flags */
+#define V6_IFA_F_SECONDARY		0x01
+#define V6_IFA_F_TEMPORARY		IFA_F_SECONDARY
+
+#define	V6_IFA_F_NODAD		0x02
+#define V6_IFA_F_OPTIMISTIC	0x04
+#define V6_IFA_F_DADFAILED		0x08
+#define	V6_IFA_F_HOMEADDRESS	0x10
+#define V6_IFA_F_DEPRECATED	0x20
+#define V6_IFA_F_TENTATIVE		0x40
+#define V6_IFA_F_PERMANENT		0x80
+
 void parse_inet6()
 {
     log_out("\n -- Try parse local inet6 by prof net file --");
 
     FILE*f;
-    int ret,scope,prefix;
+    int ret,scope,prefix, ifa_flag;
     unsigned char ipv6[16];
     char dname[IFNAMSIZ];
     char address[INET6_ADDRSTRLEN];
@@ -162,11 +174,12 @@ void parse_inet6()
 
     f=fopen("/proc/net/if_inet6","r");
     if(f==NULL){
+        log_out("/n Read conf file failed");
         return;
     }
 
-    while(19==fscanf(f,
-        "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%*x%x%x%*x%s",
+    while(20==fscanf(f,
+        "%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%2hhx%*x%x%x%x%s",
         &ipv6[0],
         &ipv6[1],
         &ipv6[2],
@@ -185,6 +198,7 @@ void parse_inet6()
         &ipv6[15],
         &prefix,
         &scope,
+        &ifa_flag,
         dname))
     {
 
@@ -212,7 +226,7 @@ void parse_inet6()
             scopestr="Unknown";
         }
 
-        log_out("\n IPv6address:%s \n > prefix:%d scope:%s dname:%s",address,prefix,scopestr.c_str(),dname);
+        log_out("\n IPv6address:%s \n > prefix:%d scope:%s ifaflag:%d dname:%s",address,prefix,scopestr.c_str(),ifa_flag,dname);
     }
 
     fclose(f);
