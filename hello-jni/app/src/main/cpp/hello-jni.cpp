@@ -227,6 +227,36 @@ void parse_inet6()
         }
 
         log_out("\n IPv6address:%s \n > prefix:%d scope:%s ifaflag:%d dname:%s",address,prefix,scopestr.c_str(),ifa_flag,dname);
+
+        int SocketFd = socket(AF_INET6, SOCK_DGRAM, IPPROTO_UDP);
+        if(SocketFd)
+        {
+            sockaddr_in6 ts_SockAddr;
+            bzero(&ts_SockAddr, sizeof(ts_SockAddr));
+            inet_pton(AF_INET6, address, ts_SockAddr.sin6_addr.s6_addr);
+            ts_SockAddr.sin6_family = AF_INET6;
+            ts_SockAddr.sin6_port = htons(0);
+            //ts_SockAddr.sin6_addr = in6addr_loopback;
+
+            char addr6_Buf[120];
+            ipv6_to_str_unexpanded(addr6_Buf, &ts_SockAddr.sin6_addr);
+            log_out("\n - Ipv6: %s", addr6_Buf);
+
+            int td_RetBind = bind(SocketFd, (sockaddr*)&ts_SockAddr, sizeof(ts_SockAddr));
+
+            if(td_RetBind)
+            {
+                int td_Errno = errno;
+                log_out("\n Bind socket failed: %d | %s", td_Errno, strerror(td_Errno));
+            }
+
+            log_out("\n bind to %s -> %d", address, td_RetBind);
+            close(SocketFd);
+        } else
+        {
+            int td_Errno = errno;
+            log_out("\n Create socket failed: %d | %s", td_Errno, strerror(td_Errno));
+        }
     }
 
     fclose(f);
